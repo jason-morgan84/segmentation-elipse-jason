@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace Ellipses
 {
@@ -11,13 +12,20 @@ namespace Ellipses
     {
 
         static void Main(string[] args)
-        {
+        {   
+            //Things that are done:
+            ///////////Load test image
+            ///////////Dapi channel into array
+            ///////////Sobel edge detection on array
+            
             //Things to do
-            //Load test image
-            //image format: multi channel tiff
-            //iniially: single stack tiff, keep in mind this will be built up to something more complx
-            //Get DAPI channel into array
-            //sobel edge detection + watershedding
+            ///////////Adapt to multi slice image
+            ///////////Guassian blur
+            ///////////Watershedding
+            ///////////Segmentation
+            ///////////GUI
+            ///////////Separate each segment for analysis
+
 
             int SegmentChannel = 4;
             int channels = 4;
@@ -27,41 +35,43 @@ namespace Ellipses
             int pageCount = InputImage.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
 
             slices = pageCount / channels;
+            //add variables for image height/width
 
             InputImage.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Page,SegmentChannel-1);
 
-            //change a to something that makes more sense
-            Bitmap a = new Bitmap(InputImage);
+            Bitmap InputBitmap = new Bitmap(InputImage);
 
-            int[,] ImageArray = new int[a.Height, a.Width];
+            int[,] ImageArray = new int[InputBitmap.Height, InputBitmap.Width];
 
-            for (int y = 0; y < a.Height; y++)
+            for (int y = 0; y < InputBitmap.Height; y++)
             {
-                for (int x=0; x < a.Width; x++)
+                for (int x=0; x < InputBitmap.Width; x++)
                 {
-                    ImageArray[y,x] = a.GetPixel(x, y).R;
+                    ImageArray[y,x] = InputBitmap.GetPixel(x, y).R;
                 }
             }
-            Console.WriteLine(a.GetPixel(240, 210));
             Console.WriteLine("Channels: "+ channels);
             Console.WriteLine("Slices: " + slices);
 
-            int[,] EdgeDetected = new int[a.Height, a.Width];
+            int[,] GaussianBlurred = new int[InputBitmap.Height, InputBitmap.Width];
+            GaussianBlurred = Program.GaussianBlur(ImageArray, 3, "Mirror");
 
+            /*
+            int[,] EdgeDetected = new int[InputBitmap.Height, InputBitmap.Width];
             EdgeDetected = Program.SobelEdge(ImageArray);
 
 
-            Bitmap OutputBitmap = new Bitmap(a.Width, a.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+            Bitmap OutputBitmap = new Bitmap(InputBitmap.Width, InputBitmap.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
 
-            for (int y = 0; y < a.Height; y++)
+            for (int y = 0; y < InputBitmap.Height; y++)
             {
-                for (int x = 0; x < a.Width; x++)
+                for (int x = 0; x < InputBitmap.Width; x++)
                 {
                     OutputBitmap.SetPixel(x, y, Color.FromArgb(255, EdgeDetected[y, x], EdgeDetected[y, x], EdgeDetected[y, x]));
                 }
             }
             OutputBitmap.Save("edgey.tif");
-            //next: watershedding, gaussian blur, GUI
+            */
         }
 
         static int[,] SobelEdge(int[,] SourceArray)
@@ -82,6 +92,59 @@ namespace Ellipses
                 }
             }
             return OutputArray;
-        } 
+        }
+
+        static int[,] GaussianBlur(int[,] SourceArray, int sigma, string EdgeHandling)
+        {
+            int[,] OutputArray = new int[SourceArray.GetLength(0), SourceArray.GetLength(1)];
+
+            //define 1D kernel given sigma
+            double[] Kernel = new double[sigma * 6 + 1];
+            for (int i = 0; i < Kernel.Length; i++)
+            {
+                double KernelPosition = i - sigma * 3;
+                Kernel[i] = (1 / Math.Sqrt(2 * Math.PI * sigma * sigma)) * Math.Exp(-((KernelPosition * KernelPosition) / (2 * sigma * sigma)));
+            }
+            Array.ForEach(Kernel, Console.WriteLine);
+            //Apply kernel to image
+            //First row by row, multiplying value of each pixel
+            for (int y = 1; y < SourceArray.GetLength(0) - 1; y++)
+            {
+                for (int x = 1; x < SourceArray.GetLength(1) - 1; x++)
+                {
+                    int NewValue = 0;
+                    for (int i = 0; i < Kernel.Length; i++)
+                    {
+                        //consider replacing relative position with actual position
+
+                        //edge handling currently only works when going below 0
+                        //need to change to going above max array size
+                        int RelativePosition = i - sigma * 3;
+                        Console.WriteLine(x + RelativePosition);
+                        if (x + RelativePosition < 0)
+                        {
+                            if (EdgeHandling=="Black")
+                            {
+                                NewValue += 0;
+                            }
+                            else if (EdgeHandling=="Mirror")
+                            {
+                                //RelativePosition = Math.Abs(RelativePosition) - 1;
+                                NewValue += (int)(SourceArray[y, Math.Abs(x + RelativePosition) + 1] * Kernel[i]);
+                            }
+                        }
+                        else
+                        {
+                            NewValue += (int)(SourceArray[y, x + RelativePosition] * Kernel[i]);
+                        }
+                        
+                    }
+                }
+            }
+                    //Then column by column
+                    //conisder different methods of edge handling
+                    //consider neccessity of normalisation
+                    return OutputArray;
+        }
     }
 }
