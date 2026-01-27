@@ -21,6 +21,7 @@ namespace Ellipses
             //Things to do
             ///////////Adapt to multi slice image
             ///////////Guassian blur
+            ///////////Elevation Map
             ///////////Watershedding
             ///////////Segmentation
             ///////////GUI
@@ -31,7 +32,7 @@ namespace Ellipses
             int channels = 4;
             int slices;
 
-            Image InputImage = Image.FromFile(@"C:\\SingleSliceTest.tif");
+            Image InputImage = Image.FromFile(@"SingleSliceTest.tif");
             int pageCount = InputImage.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
 
             slices = pageCount / channels;
@@ -60,18 +61,18 @@ namespace Ellipses
             int[,] EdgeDetected = new int[InputBitmap.Height, InputBitmap.Width];
             EdgeDetected = Program.SobelEdge(ImageArray);
 
-
+            */
             Bitmap OutputBitmap = new Bitmap(InputBitmap.Width, InputBitmap.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
-
+            
             for (int y = 0; y < InputBitmap.Height; y++)
             {
                 for (int x = 0; x < InputBitmap.Width; x++)
                 {
-                    OutputBitmap.SetPixel(x, y, Color.FromArgb(255, EdgeDetected[y, x], EdgeDetected[y, x], EdgeDetected[y, x]));
+                    OutputBitmap.SetPixel(x, y, Color.FromArgb(255, GaussianBlurred[y, x], GaussianBlurred[y, x], GaussianBlurred[y, x]));
                 }
             }
-            OutputBitmap.Save("edgey.tif");
-            */
+            OutputBitmap.Save("blurry.tif");
+            
         }
 
         static int[,] SobelEdge(int[,] SourceArray)
@@ -96,7 +97,7 @@ namespace Ellipses
 
         static int[,] GaussianBlur(int[,] SourceArray, int sigma, string EdgeHandling)
         {
-            //consider if using width and heigh variables makes this simpler
+            //consider if using width and height variables makes this simpler - maybe should be passed all the way through
             int Height = SourceArray.GetLength(0) - 1;
             int Width = SourceArray.GetLength(1) - 1;
             int[,] OutputArray = new int[SourceArray.GetLength(0), SourceArray.GetLength(1)];
@@ -143,7 +144,6 @@ namespace Ellipses
                             }
                             else if (EdgeHandling=="Mirror")
                             {
-                                Console.Write(Position);
                                 Position = (SourceArray.GetLength(1) - 1) - (Position - (SourceArray.GetLength(1)-1) - 1);
                                 NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
                             }
@@ -154,6 +154,7 @@ namespace Ellipses
                         }
                         
                     }
+                    OutputArray[y, x] = NewValue;
                 }
             }
                     //Then column by column
