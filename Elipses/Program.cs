@@ -120,6 +120,7 @@ namespace Ellipses
                     int NewValue = 0;
                     for (int i = 0; i < Kernel.Length; i++)
                     {
+                        //can both directions be done in the same for loop? should be possible
                         int Position = x + i - sigma * 3;
                         /*
                         try
