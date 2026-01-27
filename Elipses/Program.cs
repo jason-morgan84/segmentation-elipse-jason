@@ -96,6 +96,9 @@ namespace Ellipses
 
         static int[,] GaussianBlur(int[,] SourceArray, int sigma, string EdgeHandling)
         {
+            //consider if using width and heigh variables makes this simpler
+            int Height = SourceArray.GetLength(0) - 1;
+            int Width = SourceArray.GetLength(1) - 1;
             int[,] OutputArray = new int[SourceArray.GetLength(0), SourceArray.GetLength(1)];
 
             //define 1D kernel given sigma
@@ -105,7 +108,8 @@ namespace Ellipses
                 double KernelPosition = i - sigma * 3;
                 Kernel[i] = (1 / Math.Sqrt(2 * Math.PI * sigma * sigma)) * Math.Exp(-((KernelPosition * KernelPosition) / (2 * sigma * sigma)));
             }
-            Array.ForEach(Kernel, Console.WriteLine);
+            //Array.ForEach(Kernel, Console.WriteLine);
+
             //Apply kernel to image
             //First row by row, multiplying value of each pixel
             for (int y = 1; y < SourceArray.GetLength(0) - 1; y++)
@@ -115,13 +119,11 @@ namespace Ellipses
                     int NewValue = 0;
                     for (int i = 0; i < Kernel.Length; i++)
                     {
-                        //consider replacing relative position with actual position
-
                         //edge handling currently only works when going below 0
                         //need to change to going above max array size
-                        int RelativePosition = i - sigma * 3;
-                        Console.WriteLine(x + RelativePosition);
-                        if (x + RelativePosition < 0)
+                        int Position = x + i - sigma * 3;
+                        //Console.WriteLine(Position);
+                        if (Position < 0)
                         {
                             if (EdgeHandling=="Black")
                             {
@@ -129,13 +131,26 @@ namespace Ellipses
                             }
                             else if (EdgeHandling=="Mirror")
                             {
-                                //RelativePosition = Math.Abs(RelativePosition) - 1;
-                                NewValue += (int)(SourceArray[y, Math.Abs(x + RelativePosition) + 1] * Kernel[i]);
+                                Position = Math.Abs(Position) + 1;
+                                NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
+                            }
+                        }
+                        else if (Position> SourceArray.GetLength(1) - 1)
+                        {
+                            if (EdgeHandling=="Black")
+                            {
+                                NewValue += 0;
+                            }
+                            else if (EdgeHandling=="Mirror")
+                            {
+                                Console.Write(Position);
+                                Position = (SourceArray.GetLength(1) - 1) - (Position - (SourceArray.GetLength(1)-1) - 1);
+                                NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
                             }
                         }
                         else
                         {
-                            NewValue += (int)(SourceArray[y, x + RelativePosition] * Kernel[i]);
+                            NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
                         }
                         
                     }
