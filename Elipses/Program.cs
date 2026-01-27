@@ -1,8 +1,10 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 
 namespace Ellipses
@@ -36,17 +38,19 @@ namespace Ellipses
             int pageCount = InputImage.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
 
             slices = pageCount / channels;
+            int ImageHeight=InputImage.Height;
+            int ImageWidth=InputImage.Width;
             //add variables for image height/width
 
             InputImage.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Page,SegmentChannel-1);
 
             Bitmap InputBitmap = new Bitmap(InputImage);
 
-            int[,] ImageArray = new int[InputBitmap.Height, InputBitmap.Width];
+            int[,] ImageArray = new int[ImageHeight, ImageWidth];
 
-            for (int y = 0; y < InputBitmap.Height; y++)
+            for (int y = 0; y < ImageHeight; y++)
             {
-                for (int x=0; x < InputBitmap.Width; x++)
+                for (int x=0; x < ImageWidth; x++)
                 {
                     ImageArray[y,x] = InputBitmap.GetPixel(x, y).R;
                 }
@@ -54,19 +58,19 @@ namespace Ellipses
             Console.WriteLine("Channels: "+ channels);
             Console.WriteLine("Slices: " + slices);
 
-            int[,] GaussianBlurred = new int[InputBitmap.Height, InputBitmap.Width];
-            GaussianBlurred = Program.GaussianBlur(ImageArray, 3, "Mirror");
+            int[,] GaussianBlurred = new int[ImageHeight, ImageWidth];
+            GaussianBlurred = Program.GaussianBlur(ImageArray, ImageHeight, ImageWidth, 3, "Mirror");
 
             /*
             int[,] EdgeDetected = new int[InputBitmap.Height, InputBitmap.Width];
             EdgeDetected = Program.SobelEdge(ImageArray);
 
             */
-            Bitmap OutputBitmap = new Bitmap(InputBitmap.Width, InputBitmap.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+            Bitmap OutputBitmap = new Bitmap(ImageHeight, ImageWidth, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
             
-            for (int y = 0; y < InputBitmap.Height; y++)
+            for (int y = 0; y < ImageHeight; y++)
             {
-                for (int x = 0; x < InputBitmap.Width; x++)
+                for (int x = 0; x < ImageWidth; x++)
                 {
                     OutputBitmap.SetPixel(x, y, Color.FromArgb(255, GaussianBlurred[y, x], GaussianBlurred[y, x], GaussianBlurred[y, x]));
                 }
@@ -95,11 +99,8 @@ namespace Ellipses
             return OutputArray;
         }
 
-        static int[,] GaussianBlur(int[,] SourceArray, int sigma, string EdgeHandling)
+        static int[,] GaussianBlur(int[,] SourceArray, int Height, int Width, int sigma, string EdgeHandling)
         {
-            //consider if using width and height variables makes this simpler - maybe should be passed all the way through
-            int Height = SourceArray.GetLength(0) - 1;
-            int Width = SourceArray.GetLength(1) - 1;
             int[,] OutputArray = new int[SourceArray.GetLength(0), SourceArray.GetLength(1)];
 
             //define 1D kernel given sigma
@@ -109,21 +110,38 @@ namespace Ellipses
                 double KernelPosition = i - sigma * 3;
                 Kernel[i] = (1 / Math.Sqrt(2 * Math.PI * sigma * sigma)) * Math.Exp(-((KernelPosition * KernelPosition) / (2 * sigma * sigma)));
             }
-            //Array.ForEach(Kernel, Console.WriteLine);
 
             //Apply kernel to image
             //First row by row, multiplying value of each pixel
-            for (int y = 1; y < SourceArray.GetLength(0) - 1; y++)
+            for (int y = 1; y < Height - 1; y++)
             {
-                for (int x = 1; x < SourceArray.GetLength(1) - 1; x++)
+                for (int x = 1; x < Width - 1; x++)
                 {
                     int NewValue = 0;
                     for (int i = 0; i < Kernel.Length; i++)
                     {
-                        //edge handling currently only works when going below 0
-                        //need to change to going above max array size
                         int Position = x + i - sigma * 3;
-                        //Console.WriteLine(Position);
+                        /*
+                        try
+                        {
+                            NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
+                        }
+                        catch (Exception e)
+                        {
+                            NewValue += 0;
+                        }
+                        */
+                        
+                        if (Position >= 0 && Position < Width )
+                        {
+                            NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
+                            
+                        }
+                        else
+                        {
+                            NewValue += 0;
+                        }
+                        /*
                         if (Position < 0)
                         {
                             if (EdgeHandling=="Black")
@@ -136,7 +154,7 @@ namespace Ellipses
                                 NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
                             }
                         }
-                        else if (Position> SourceArray.GetLength(1) - 1)
+                        else if (Position> Width - 1)
                         {
                             if (EdgeHandling=="Black")
                             {
@@ -144,7 +162,7 @@ namespace Ellipses
                             }
                             else if (EdgeHandling=="Mirror")
                             {
-                                Position = (SourceArray.GetLength(1) - 1) - (Position - (SourceArray.GetLength(1)-1) - 1);
+                                Position = (SourceArray.GetLength(1) - 1) - (Position - (Width-1) - 1);
                                 NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
                             }
                         }
@@ -152,15 +170,18 @@ namespace Ellipses
                         {
                             NewValue += (int)(SourceArray[y, Position] * Kernel[i]);
                         }
+                        */
                         
                     }
+
                     OutputArray[y, x] = NewValue;
                 }
+                
             }
-                    //Then column by column
-                    //conisder different methods of edge handling
-                    //consider neccessity of normalisation
-                    return OutputArray;
+            //Then column by column
+            //consider neccessity of normalisation
+
+            return OutputArray;
         }
     }
 }
