@@ -37,7 +37,7 @@ namespace Ellipses
             ///////////Separate each segment for analysis
 
 
-            int SegmentChannel = 4;
+            int SegmentChannel = 2;
             int channels = 4;
 
             Bitmap InputBitmap = new Bitmap(@"singleslicetest2.tif",true);
@@ -162,13 +162,12 @@ namespace Ellipses
             //impletmentation of triangle thresholding
             //Zack GW, Rogers WE, Latt SA. Automatic measurement of sister chromatid exchange frequency. J Histochem Cytochem. 1977 Jul;25(7):741-53. doi: 10.1177/25.7.70454. PMID: 70454.
             //NOTE - THIS ONLY WORKS WHEN PEAK IS ON THE LEFT OF THE HISTOGRAM
+            //NOTE2 - this returns a slightly lower threshold than triangle in FIJI but the same as CV2 - I don't think FIJI normalises the data
             int OutputThreshold = 0;
             int PeakHeight = InputHistogram.Max();
             int PeakIndex = InputHistogram.IndexOf(PeakHeight);
             int MaxIndex = 0;
 
-            //SOMETHING WEIRD IS HAPPENING HERE - compared to FIJI, the triangle threshold I'm calculating is out by exactly 2 - I can't see why, and I can't see why this is 
-            //consisent between images - compare to segmentation tool to see if Triangle thresholding there agrees with me.
 
             for (int i = 255; i >= 0; i--)
             {
@@ -180,8 +179,6 @@ namespace Ellipses
             }
 
             double NormalisedBinWidth = 1 / (double)(MaxIndex - PeakIndex);
-            double[] NormalisedHistogram = new double[256];
-            for (int i = 0; i < 256; i++) NormalisedHistogram[i] = (double)InputHistogram[i] / PeakHeight;
             double MaxVerticalDistance = 0;
             int ThresholdBin = 0;
             for (int i = PeakIndex; i < (MaxIndex - PeakIndex); i++)
@@ -190,8 +187,8 @@ namespace Ellipses
                 //Techincally, the triangle algorithm needs the perpendicular distance between the line and the top of the histogram bar being analysed, but this is proportional
                 //to the vertical distance (sin45 * verticaldistance)
 
-                double VerticalDistance = 1 - (NormalisedBinWidth * (i - PeakIndex)) - NormalisedHistogram[i];
-               // Console.WriteLine("bin: {0}; NormalisedBinWidth * i: {1}, NormalisedHistogram[i]: {2}; VerticalDistance: {3}",PeakIndex, NormalisedBinWidth * (i-PeakIndex),NormalisedHistogram[i],VerticalDistance);
+                double VerticalDistance = 1 - (double)(NormalisedBinWidth * (i - PeakIndex)) - (double)InputHistogram[i] / PeakHeight;
+             
                 if (VerticalDistance > MaxVerticalDistance)
                 {
                     MaxVerticalDistance = VerticalDistance;
@@ -200,7 +197,6 @@ namespace Ellipses
                 
 
             }
-            //Console.WriteLine("Triangle " + ThresholdBin);
             return OutputThreshold;
         }
     }
