@@ -19,13 +19,14 @@ namespace Ellipses
         {
 
 
-            /******************PRIORITY - Compare output so far to other versions online*********************/
-
             //Things that are done:
             ///////////Load test image
             ///////////Dapi channel into array
             ///////////Sobel edge detection on array
             ///////////Guassian blur
+            ///////////Canny edge detection
+            ///////////Binarising
+            ///////////Histogram
 
             //Things to do
             ///////////Adapt to multi slice image
@@ -40,17 +41,18 @@ namespace Ellipses
             int channels = 4;
             int slices;
 
-            //Image InputImage = Image.FromFile(@"test.tif");
-            Image InputImage = Image.FromFile(@"SingleSliceTestSmall.tif");
-            int pageCount = InputImage.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
+            Image InputImage = Image.FromFile(@"TinyTestsinglestack.tif",);
+            Bitmap InputBitmap = new Bitmap(1024, 1024, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+            InputBitmap = (Bitmap)Bitmap.FromFile(@"TinyTest.tif",true);
+            //Bitmap InputBitmap = new Bitmap(@"tinytest.tif");
+
+            int pageCount = InputBitmap.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
 
             slices = pageCount / channels;
-            int ImageHeight = InputImage.Height;
-            int ImageWidth = InputImage.Width;
+            int ImageHeight = InputBitmap.Height;
+            int ImageWidth = InputBitmap.Width;
 
-            InputImage.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Page,SegmentChannel-1);
-
-            Bitmap InputBitmap = new Bitmap(InputImage);
+            InputBitmap.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Page,SegmentChannel-1);
 
             int[,] ImageArray = new int[ImageHeight, ImageWidth];
 
@@ -59,7 +61,9 @@ namespace Ellipses
                 for (int x = 0; x < ImageWidth; x++)
                 {
                     ImageArray[y, x] = InputBitmap.GetPixel(x, y).R;
+                    Console.Write("({0},{1},{2},{3}) ", InputBitmap.GetPixel(x,y).A,InputBitmap.GetPixel(x, y).R, InputBitmap.GetPixel(x, y).G, InputBitmap.GetPixel(x, y).B);
                 }
+                Console.Write("\n");
             }
             Console.WriteLine("Channels: " + channels);
             Console.WriteLine("Slices: " + slices);
@@ -91,11 +95,11 @@ namespace Ellipses
             Output.OutputImage(PostHysteresis, ImageHeight, ImageWidth, "hysteresis.tif", 255);
 
 
-            //Output.OutputImage(ImageArray, ImageHeight, ImageWidth, "same as input.tif", 1);
+            Output.OutputImage(ImageArray, ImageHeight, ImageWidth, "same as input.tif", 1);
 
 
-            int[] Histogram = new int[256];
-            Histogram = Threshold.Histogram(ImageArray);
+            //int[] Histogram = new int[256];
+            //Histogram = Threshold.Histogram(ImageArray);
 
             //foreach (int item in Histogram) Console.WriteLine(item);
             //for (int i = 0; i < Histogram.Length; i++) Console.WriteLine("{0}: {1}", i, Histogram[i]);
@@ -339,7 +343,6 @@ namespace Ellipses
         public static void OutputImage(double[,] SourceArray, int Height, int Width, string filename, int modifier)
         {
             Bitmap OutputBitmap = new Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
-
             for (int y = 0; y < Height; y++)
             {
                 for (int x = 0; x < Width; x++)
@@ -365,5 +368,3 @@ namespace Ellipses
         }
     }
 }
-
-
