@@ -39,20 +39,20 @@ namespace Ellipses
 
             int SegmentChannel = 4;
             int channels = 4;
-            int slices;
 
-            Image InputImage = Image.FromFile(@"TinyTestsinglestack.tif",);
-            Bitmap InputBitmap = new Bitmap(1024, 1024, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
-            InputBitmap = (Bitmap)Bitmap.FromFile(@"TinyTest.tif",true);
-            //Bitmap InputBitmap = new Bitmap(@"tinytest.tif");
+            Bitmap InputBitmap = new Bitmap(@"singleslicetest2.tif",true);
 
             int pageCount = InputBitmap.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
-
-            slices = pageCount / channels;
+            int slices = pageCount / channels;
             int ImageHeight = InputBitmap.Height;
             int ImageWidth = InputBitmap.Width;
 
             InputBitmap.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Page,SegmentChannel-1);
+            var pal = InputBitmap.Palette;
+            for (int i = 0; i < pal.Entries.Length; i++)
+                pal.Entries[i] = Color.FromArgb(i, i, i);
+
+            InputBitmap.Palette = pal;
 
             int[,] ImageArray = new int[ImageHeight, ImageWidth];
 
@@ -61,15 +61,15 @@ namespace Ellipses
                 for (int x = 0; x < ImageWidth; x++)
                 {
                     ImageArray[y, x] = InputBitmap.GetPixel(x, y).R;
-                    Console.Write("({0},{1},{2},{3}) ", InputBitmap.GetPixel(x,y).A,InputBitmap.GetPixel(x, y).R, InputBitmap.GetPixel(x, y).G, InputBitmap.GetPixel(x, y).B);
                 }
-                Console.Write("\n");
             }
             Console.WriteLine("Channels: " + channels);
             Console.WriteLine("Slices: " + slices);
             Console.WriteLine("Height: " + ImageHeight);
             Console.WriteLine("Width: " + ImageWidth);
 
+
+            //these need to be integered - otherwise they can't act as input for histogram, thresholding etc
             double[,] GaussianBlurred = new double[ImageHeight, ImageWidth];
             GaussianBlurred = Filter.GaussianBlur(ImageArray, ImageHeight, ImageWidth, 1.6);
             Console.WriteLine("Gaussian blur complete");
@@ -90,19 +90,21 @@ namespace Ellipses
             int[,] PostHysteresis = new int[ImageHeight, ImageWidth];
             PostHysteresis = EdgeDetection.Hysteresis(DoubleThresholded, ImageHeight, ImageWidth);
 
+            int[] Histogram = Threshold.Histogram(ImageArray);
+            Console.WriteLine("Histogram complete");
+
+            int triangle = Threshold.TriangleThreshold(Histogram); 
+            /*
             Output.OutputImage(EdgeDetected, ImageHeight, ImageWidth, "Edgy.tif", 1);
             Output.OutputImage(NMS, ImageHeight, ImageWidth, "thinned.tif", 1);
             Output.OutputImage(PostHysteresis, ImageHeight, ImageWidth, "hysteresis.tif", 255);
 
 
-            Output.OutputImage(ImageArray, ImageHeight, ImageWidth, "same as input.tif", 1);
+            Output.OutputImage(ImageArray, ImageHeight, ImageWidth, "same as input.tif", 1);*/
 
 
-            //int[] Histogram = new int[256];
-            //Histogram = Threshold.Histogram(ImageArray);
 
-            //foreach (int item in Histogram) Console.WriteLine(item);
-            //for (int i = 0; i < Histogram.Length; i++) Console.WriteLine("{0}: {1}", i, Histogram[i]);
+
 
         }
     }
@@ -146,31 +148,60 @@ namespace Ellipses
 
         public static int[] Histogram(int[,] SourceArray)
         {
-            //currently two methods here to work out why this histogram is different to fiji's
+            //goes through each pixel in the image, increments the respective value in a 256-long array to form histogram data
             int[] OutputArray = new int[256];
-            int count = 0;
-            int count2 = 0;
-
-            for (int y = 0; y < SourceArray.GetLength(0);y++)
-            {
-                for (int x = 0; x < SourceArray.GetLength(1); x++)
-                {
-                    if (SourceArray[y,x] == 0) count2++;
-                    Console.Write(SourceArray[y, x]);
-                    Console.Write(",");
-                }
-                Console.Write("\n");
-            }
-
             foreach (int item in SourceArray)
             {
-                //Console.Write(item);
-                if (item == 0) count++;
                 OutputArray[item]++;
             }
-            Console.WriteLine(count);
-            Console.WriteLine(count2);
             return OutputArray;
+        }
+
+        public static int TriangleThreshold(int[] InputHistogram)
+        {
+            //impletmentation of triangle thresholding
+            //Zack GW, Rogers WE, Latt SA. Automatic measurement of sister chromatid exchange frequency. J Histochem Cytochem. 1977 Jul;25(7):741-53. doi: 10.1177/25.7.70454. PMID: 70454.
+            //NOTE - THIS ONLY WORKS WHEN PEAK IS ON THE LEFT OF THE HISTOGRAM
+            int OutputThreshold = 0;
+            int PeakHeight = InputHistogram.Max();
+            int PeakIndex = InputHistogram.IndexOf(PeakHeight);
+            int MaxIndex = 0;
+
+            //SOMETHING WEIRD IS HAPPENING HERE - compared to FIJI, the triangle threshold I'm calculating is out by exactly 2 - I can't see why, and I can't see why this is 
+            //consisent between images - compare to segmentation tool to see if Triangle thresholding there agrees with me.
+
+            for (int i = 255; i >= 0; i--)
+            {
+                if (InputHistogram[i] != 0)
+                {
+                    MaxIndex = i;
+                    break;
+                }
+            }
+
+            double NormalisedBinWidth = 1 / (double)(MaxIndex - PeakIndex);
+            double[] NormalisedHistogram = new double[256];
+            for (int i = 0; i < 256; i++) NormalisedHistogram[i] = (double)InputHistogram[i] / PeakHeight;
+            double MaxVerticalDistance = 0;
+            int ThresholdBin = 0;
+            for (int i = PeakIndex; i < (MaxIndex - PeakIndex); i++)
+            {
+                //This calculates the vertical distance between the diagonal between the peak histogram height (normalised to 1) and the histogram width (normalised to 1)
+                //Techincally, the triangle algorithm needs the perpendicular distance between the line and the top of the histogram bar being analysed, but this is proportional
+                //to the vertical distance (sin45 * verticaldistance)
+
+                double VerticalDistance = 1 - (NormalisedBinWidth * (i - PeakIndex)) - NormalisedHistogram[i];
+               // Console.WriteLine("bin: {0}; NormalisedBinWidth * i: {1}, NormalisedHistogram[i]: {2}; VerticalDistance: {3}",PeakIndex, NormalisedBinWidth * (i-PeakIndex),NormalisedHistogram[i],VerticalDistance);
+                if (VerticalDistance > MaxVerticalDistance)
+                {
+                    MaxVerticalDistance = VerticalDistance;
+                    ThresholdBin = i;
+                }
+                
+
+            }
+            //Console.WriteLine("Triangle " + ThresholdBin);
+            return OutputThreshold;
         }
     }
     
