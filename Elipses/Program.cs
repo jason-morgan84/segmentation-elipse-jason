@@ -37,10 +37,10 @@ namespace Ellipses
             ///////////Separate each segment for analysis
 
 
-            int SegmentChannel = 2;
+            int SegmentChannel = 4;
             int channels = 4;
 
-            Bitmap InputBitmap = new Bitmap(@"singleslicetest2.tif",true);
+            Bitmap InputBitmap = new Bitmap(@"singleslicetest.tif",true);
 
             int pageCount = InputBitmap.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
             int slices = pageCount / channels;
@@ -70,17 +70,17 @@ namespace Ellipses
 
 
             //these need to be integered - otherwise they can't act as input for histogram, thresholding etc
-            double[,] GaussianBlurred = new double[ImageHeight, ImageWidth];
+            int[,] GaussianBlurred = new int[ImageHeight, ImageWidth];
             GaussianBlurred = Filter.GaussianBlur(ImageArray, ImageHeight, ImageWidth, 1.6);
             Console.WriteLine("Gaussian blur complete");
 
-            double[,] EdgeDetected = new double[ImageHeight, ImageWidth];
-            double[,] Gradients = new double[ImageHeight, ImageWidth];
+            int[,] EdgeDetected = new int[ImageHeight, ImageWidth];
+            int[,] Gradients = new int[ImageHeight, ImageWidth];
             EdgeDetection.SobelEdge(GaussianBlurred, ImageHeight, ImageWidth, out EdgeDetected, out Gradients);
             Console.WriteLine("Edge detection complete");
 
 
-            double[,] NMS = new double[ImageHeight, ImageWidth];
+            int[,] NMS = new int[ImageHeight, ImageWidth];
             NMS = EdgeDetection.NonMaximumSuppression(EdgeDetected, Gradients, ImageHeight, ImageWidth);
             Console.WriteLine("Non-maximum suppression complete");
 
@@ -94,16 +94,10 @@ namespace Ellipses
             Console.WriteLine("Histogram complete");
 
             int triangle = Threshold.TriangleThreshold(Histogram); 
-            /*
+            
             Output.OutputImage(EdgeDetected, ImageHeight, ImageWidth, "Edgy.tif", 1);
             Output.OutputImage(NMS, ImageHeight, ImageWidth, "thinned.tif", 1);
             Output.OutputImage(PostHysteresis, ImageHeight, ImageWidth, "hysteresis.tif", 255);
-
-
-            Output.OutputImage(ImageArray, ImageHeight, ImageWidth, "same as input.tif", 1);*/
-
-
-
 
 
         }
@@ -111,7 +105,7 @@ namespace Ellipses
 
     class Threshold
     {
-        public static int[,] DoubleThreshold(double[,] SourceArray, int Height, int Width, double low, double high)
+        public static int[,] DoubleThreshold(int[,] SourceArray, int Height, int Width, double low, double high)
         {
             int[,] OutputArray = new int[Height, Width];
             double MaxInputValue = 0;
@@ -203,15 +197,16 @@ namespace Ellipses
     
     class EdgeDetection
     {
-        public static void SobelEdge(double[,] SourceArray, int height, int width, out double[,] GradientIntensity, out double[,] EdgeDirection)
+        public static void SobelEdge(int[,] SourceArray, int height, int width, out int[,] GradientIntensity, out int[,] EdgeDirection)
         {
             //returns array using sobel edge detection and intensity gradient for further steps of Canny edge detection
             double sx, sy;
-            GradientIntensity = new double[height, width];
+            double[,] WorkingGradientIntensity = new double[height,width];
+            GradientIntensity = new int[height, width];
             double MaxIntensity = 0;
 
             double G = 0;
-            EdgeDirection = new double[height, width];
+            EdgeDirection = new int[height, width];
 
 
             for (int y = 1; y < height - 1; y++)
@@ -226,14 +221,14 @@ namespace Ellipses
                         - 1 * SourceArray[y + 1, x - 1] + 1 * SourceArray[y + 1, x + 1]);
                     sy = (-1 * SourceArray[y - 1, x - 1] - 2 * SourceArray[y - 1, x] - 1 * SourceArray[y - 1, x + 1]
                         + 1 * SourceArray[y + 1, x - 1] + 2 * SourceArray[y + 1, x] + 1 * SourceArray[y + 1, x + 1]);
-                    GradientIntensity[y, x] = Math.Sqrt(sx * sx + sy * sy);
+                    WorkingGradientIntensity[y, x] = Math.Sqrt(sx * sx + sy * sy);
 
                     //get max intensity for normalisation
-                    if (GradientIntensity[y, x] > MaxIntensity) MaxIntensity = GradientIntensity[y, x];
+                    if (WorkingGradientIntensity[y, x] > MaxIntensity) MaxIntensity = WorkingGradientIntensity[y, x];
 
                     //calculate gradient angle in degrees
                     G = Math.Atan2(sy, sx) * (180 / Math.PI);
-                    EdgeDirection[y, x] = G;
+                    EdgeDirection[y, x] = (int)Math.Round(G);
 
                     //Console.WriteLine("Y: {0}; X: {1}; Value: {2}; sx: {3}; sy: {4}; Int: {5}; G1: {6}; G2: {7}", y, x, SourceArray[y,x], sx, sy, Math.Sqrt(sx * sx + sy * sy), Math.Atan2(sy, sx) * (180 / Math.PI), G);
                 }
@@ -244,16 +239,16 @@ namespace Ellipses
             {
                 for (int x = 0; x < width; x++)
                 {
-                    GradientIntensity[y, x] = (GradientIntensity[y, x] / MaxIntensity) * 255;
+                    GradientIntensity[y, x] = (int)Math.Round((WorkingGradientIntensity[y, x] / MaxIntensity) * 255);
                 }
             }
         }
 
-        public static double[,] NonMaximumSuppression(double[,] GradientIntensity, double[,] EdgeAngle, int Height, int Width)
+        public static int[,] NonMaximumSuppression(int[,] GradientIntensity, int[,] EdgeAngle, int Height, int Width)
         {
             //Carries out non-maximum suppresion using an input array of gradient intensity and edge angles taken from sobel edge detection
             //for each pixel, compares the two cells on either side, perpendicular to the edge angle - if current cell is the maximum, it becomes 1, otherwise it becomes 0.
-            double[,] OutputArray = new double[Height, Width];
+            int[,] OutputArray = new int[Height, Width];
             for (int y = 1; y < Height - 1; y++)
             {
                 for (int x = 1; x < Width - 1; x++)
@@ -310,10 +305,10 @@ namespace Ellipses
     }
     class Filter
     {
-        public static double[,] GaussianBlur(int[,] SourceArray, int Height, int Width, double sigma)
+        public static int[,] GaussianBlur(int[,] SourceArray, int Height, int Width, double sigma)
         {
             double[,] FirstPass = new double[Height, Width];
-            double[,] OutputArray = new double[Height, Width];
+            int[,] OutputArray = new int[Height, Width];
 
             //define 1D kernel given sigma
             double[] Kernel = new double[(int)(sigma * 6 + 1)];
@@ -359,7 +354,7 @@ namespace Ellipses
 
                         YNewValue += FirstPass[YPosition, x] * Kernel[i];
                     }
-                    OutputArray[y, x] = YNewValue;
+                    OutputArray[y, x] = (int)Math.Round(YNewValue);
                 }
             }
             return OutputArray;
@@ -367,19 +362,6 @@ namespace Ellipses
     }
     class Output
     {
-        public static void OutputImage(double[,] SourceArray, int Height, int Width, string filename, int modifier)
-        {
-            Bitmap OutputBitmap = new Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
-            for (int y = 0; y < Height; y++)
-            {
-                for (int x = 0; x < Width; x++)
-                {
-                    OutputBitmap.SetPixel(x, y, Color.FromArgb(255, (int)SourceArray[y, x] * modifier, (int)SourceArray[y, x] * modifier, (int)SourceArray[y, x] * modifier));
-                }
-            }
-            OutputBitmap.Save(filename);
-        }
-
         public static void OutputImage(int[,] SourceArray, int Height, int Width, string filename, int modifier)
         {
             Bitmap OutputBitmap = new Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
