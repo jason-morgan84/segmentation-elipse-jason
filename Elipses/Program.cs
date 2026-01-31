@@ -26,15 +26,17 @@ namespace Ellipses
             ///////////Guassian blur
             ///////////Canny edge detection
             ///////////Binarising
-            ///////////Histogram
+            ///////////
 
             //Things to do
+            ///////////Fill holes
+            ///////////Segmentation (and minimum object size)
+            ///////////Separate each segment for analysis
             ///////////Adapt to multi slice image
             ///////////Elevation Map?
             ///////////Watershedding?
-            ///////////Segmentation
             ///////////GUI
-            ///////////Separate each segment for analysis
+
 
 
             int SegmentChannel = 4;
@@ -69,36 +71,14 @@ namespace Ellipses
             Console.WriteLine("Width: " + ImageWidth);
 
 
-            //these need to be integered - otherwise they can't act as input for histogram, thresholding etc
-            int[,] GaussianBlurred = new int[ImageHeight, ImageWidth];
-            GaussianBlurred = Filter.GaussianBlur(ImageArray, ImageHeight, ImageWidth, 1.6);
-            Console.WriteLine("Gaussian blur complete");
-
-            int[,] EdgeDetected = new int[ImageHeight, ImageWidth];
-            int[,] Gradients = new int[ImageHeight, ImageWidth];
-            EdgeDetection.SobelEdge(GaussianBlurred, ImageHeight, ImageWidth, out EdgeDetected, out Gradients);
-            Console.WriteLine("Edge detection complete");
-
-
-            int[,] NMS = new int[ImageHeight, ImageWidth];
-            NMS = EdgeDetection.NonMaximumSuppression(EdgeDetected, Gradients, ImageHeight, ImageWidth);
-            Console.WriteLine("Non-maximum suppression complete");
-
-            int[,] DoubleThresholded = new int[ImageHeight, ImageWidth];
-            DoubleThresholded = Threshold.DoubleThreshold(NMS, ImageHeight, ImageWidth, 0.05, 0.1);
-
-            int[,] PostHysteresis = new int[ImageHeight, ImageWidth];
-            PostHysteresis = EdgeDetection.Hysteresis(DoubleThresholded, ImageHeight, ImageWidth);
-
-            int[] Histogram = Threshold.Histogram(ImageArray);
-            Console.WriteLine("Histogram complete");
-
-            int triangle = Threshold.TriangleThreshold(Histogram); 
+            int[,] GaussianBlurred = Filter.GaussianBlur(ImageArray, ImageHeight, ImageWidth, 1);
+            int[] Histogram = Threshold.Histogram(GaussianBlurred);
+            int Triangle = Threshold.TriangleThreshold(Histogram);
+            Console.WriteLine("Triangle: " + Triangle);
+            int[,] Thresholded = Threshold.Binarise(GaussianBlurred, ImageHeight, ImageWidth, Triangle);
             
-            Output.OutputImage(EdgeDetected, ImageHeight, ImageWidth, "Edgy.tif", 1);
-            Output.OutputImage(NMS, ImageHeight, ImageWidth, "thinned.tif", 1);
-            Output.OutputImage(PostHysteresis, ImageHeight, ImageWidth, "hysteresis.tif", 255);
-
+            Output.OutputImage(GaussianBlurred, ImageHeight, ImageWidth, "Blurred.tif", 1);
+            Output.OutputImage(Thresholded, ImageHeight, ImageWidth, "Thresholded.tif", 255);
 
         }
     }
@@ -127,7 +107,7 @@ namespace Ellipses
             return OutputArray;
         }
 
-        public static int[,] Binarise(double[,] SourceArray, int Height, int Width, double Threshold)
+        public static int[,] Binarise(int[,] SourceArray, int Height, int Width, double Threshold)
         {
             int[,] OutputArray = new int[Height, Width];
             for (int y = 0; y < Height; y++)
@@ -157,11 +137,9 @@ namespace Ellipses
             //Zack GW, Rogers WE, Latt SA. Automatic measurement of sister chromatid exchange frequency. J Histochem Cytochem. 1977 Jul;25(7):741-53. doi: 10.1177/25.7.70454. PMID: 70454.
             //NOTE - THIS ONLY WORKS WHEN PEAK IS ON THE LEFT OF THE HISTOGRAM
             //NOTE2 - this returns a slightly lower threshold than triangle in FIJI but the same as CV2 - I don't think FIJI normalises the data
-            int OutputThreshold = 0;
             int PeakHeight = InputHistogram.Max();
             int PeakIndex = InputHistogram.IndexOf(PeakHeight);
             int MaxIndex = 0;
-
 
             for (int i = 255; i >= 0; i--)
             {
@@ -188,10 +166,8 @@ namespace Ellipses
                     MaxVerticalDistance = VerticalDistance;
                     ThresholdBin = i;
                 }
-                
-
             }
-            return OutputThreshold;
+            return ThresholdBin;
         }
     }
     
